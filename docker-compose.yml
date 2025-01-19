@@ -43,4 +43,12 @@ services:
       PAPERLESS_DBHOST: db
       PAPERLESS_SCRIPTS_TOKEN: c5e9b4524d79295f6be0903c29f72e9cba791040
       PAPERLESS_POST_CONSUME_SCRIPT: /usr/src/paperless-ngx-scripts/post-consume.sh
-      PAPERLESS_POST_CONSUME_SCRIPT_NAMES: ping
+      PAPERLESS_POST_CONSUME_SCRIPT_NAMES: ping,autotitle-ai
+      PAPERLESS_POST_CONSUME_SCRIPT_AUTOTITLE_OLLAMA_BASE_URL: http://ollama:11434
+      PAPERLESS_POST_CONSUME_SCRIPT_AUTOTITLE_OLLAMA_MODEL: llama3.2:3b
+
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    volumes:
+      - ollama:/root/.ollama
