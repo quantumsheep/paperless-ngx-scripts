@@ -1,0 +1,46 @@
+volumes:
+  data:
+  media:
+  export:
+  consume:
+  pgdata:
+  redisdata:
+  ollama:
+
+services:
+  broker:
+    image: docker.io/library/redis:7
+    restart: unless-stopped
+    volumes:
+      - redisdata:/data
+
+  db:
+    image: docker.io/library/postgres:16
+    restart: unless-stopped
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: paperless
+      POSTGRES_USER: paperless
+      POSTGRES_PASSWORD: paperless
+
+  webserver:
+    image: ghcr.io/paperless-ngx/paperless-ngx:latest
+    restart: unless-stopped
+    depends_on:
+      - db
+      - broker
+    ports:
+      - "8000:8000"
+    volumes:
+      - data:/usr/src/paperless/data
+      - media:/usr/src/paperless/media
+      - export:/usr/src/paperless/export
+      - consume:/usr/src/paperless/consume
+      - .:/usr/src/paperless-ngx-scripts
+    environment:
+      PAPERLESS_REDIS: redis://broker:6379
+      PAPERLESS_DBHOST: db
+      PAPERLESS_SCRIPTS_TOKEN: c5e9b4524d79295f6be0903c29f72e9cba791040
+      PAPERLESS_POST_CONSUME_SCRIPT: /usr/src/paperless-ngx-scripts/post-consume.sh
+      PAPERLESS_POST_CONSUME_SCRIPT_NAMES: ping
