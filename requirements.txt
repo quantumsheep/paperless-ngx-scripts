@@ -1,3 +1,4 @@
 requests
 dict2dataclass>=0.3.0
-ollama
+openai
+pydantic

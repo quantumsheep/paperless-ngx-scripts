@@ -1,29 +1,34 @@
 import json
 from datetime import datetime
 
-from ollama import Client as OllamaClient
+from openai import OpenAI
+from pydantic import BaseModel
 
 from paperless.postconsumption import PostConsumptionScript
 
 
+class ResponseFormat(BaseModel):
+    title: str
+    date: str
+
+
 class Script(PostConsumptionScript):
     def run(self):
-        self.logger.info(f"Running f{self.name} post-consumption script")
+        self.logger.info(f"Running {self.name} post-consumption script")
 
-        ollama_base_url = self.getenv("OLLAMA_BASE_URL")
-        ollama_model = self.getenv("OLLAMA_MODEL")
+        openai_base_url = self.getenv("OPENAI_BASE_URL", "")
+        openai_api_key = self.getenv("OPENAI_API_KEY", "")
+        openai_model = self.getenv("OPENAI_MODEL")
 
         document = self.client.get_document(self.env.document_id)
-        self.logger.debug(document)
 
-        ollama = OllamaClient(host=ollama_base_url)
-
-        self.logger.info(f"Pulling model")
-        ollama.pull(ollama_model)
+        openai_client = OpenAI(
+            base_url=openai_base_url or None,
+            api_key=openai_api_key or None,
+        )
 
         self.logger.info(f"Chatting with model")
-        chat_response = ollama.chat(
-            model=ollama_model,
+        completion = openai_client.beta.chat.completions.parse(
             messages=[
                 {
                     "role": "system",
@@ -34,40 +39,32 @@ class Script(PostConsumptionScript):
                     "content": document.content,
                 },
             ],
-            format={
-                "type": "object",
-                "properties": {
-                    "title": {"type": "string"},
-                    "date": {"type": "string"},
-                },
-                "required": ["title"],
-            },
-            keep_alive="15m",
+            response_format=ResponseFormat,
+            model=openai_model,
+            max_tokens=512,
+            temperature=0.7,
+            top_p=0.7,
+            presence_penalty=0,
         )
 
-        content = chat_response.message.content
-        if not content:
+        result = completion.choices[0].message.parsed
+        if not result:
             self.logger.error("Failed to generate title. No content returned.")
             return
 
-        json_content = json.loads(content)
-
-        title = json_content.get("title")
-        if not title:
+        if not result.title:
             self.logger.error("Failed to generate title. No title returned.")
             return
 
-        date = json_content.get("date")
-
-        self.logger.info(f"Generated title: {title}")
-        self.logger.info(f"Generated date: {date}")
+        self.logger.info(f"Generated title: {result.title}")
+        self.logger.info(f"Generated date: {result.date}")
         self.logger.info(f"Updating document")
 
-        document.title = title
+        document.title = result.title
 
-        if date:
+        if result.date:
             try:
-                date = datetime.strptime(date, "%d-%m-%Y")
+                date = datetime.strptime(result.date, "%d-%m-%Y")
                 document.created = date.strftime("%Y-%m-%dT00:00:00Z")
             except Exception as e:
                 self.logger.error(f"Failed to parse date: {e}")

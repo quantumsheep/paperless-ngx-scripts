@@ -41,14 +41,31 @@ services:
     environment:
       PAPERLESS_REDIS: redis://broker:6379
       PAPERLESS_DBHOST: db
+
       PAPERLESS_SCRIPTS_TOKEN: c5e9b4524d79295f6be0903c29f72e9cba791040
       PAPERLESS_POST_CONSUME_SCRIPT: /usr/src/paperless-ngx-scripts/post-consume.sh
       PAPERLESS_POST_CONSUME_SCRIPT_NAMES: ping,autotitle-ai
-      PAPERLESS_POST_CONSUME_SCRIPT_AUTOTITLE_OLLAMA_BASE_URL: http://ollama:11434
-      PAPERLESS_POST_CONSUME_SCRIPT_AUTOTITLE_OLLAMA_MODEL: llama3.2:3b
+      PAPERLESS_POST_CONSUME_SCRIPT_AUTOTITLE_OPENAI_BASE_URL: http://ollama:11434
+      PAPERLESS_POST_CONSUME_SCRIPT_AUTOTITLE_OPENAI_MODEL: llama3.2:3b
 
   ollama:
     image: ollama/ollama:latest
     restart: unless-stopped
     volumes:
       - ollama:/root/.ollama
+    environment:
+      OLLAMA_KEEP_ALIVE: 15m
+    healthcheck:
+      test: ["CMD", "ollama", "ps"]
+      interval: 1m
+      timeout: 10s
+      retries: 3
+
+  ollama-run:
+    depends_on:
+      ollama:
+        condition: service_healthy
+    image: ollama/ollama:latest
+    command: pull llama3.2:3b
+    environment:
+      OLLAMA_HOST: ollama:11434
